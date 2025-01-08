@@ -78,7 +78,7 @@ To integrate this server with Claude Desktop as the MCP Client, add the followin
       "command": "uv",
       "args": [
         "--directory",
-        "[absolute-path-to-gmail-directory]",
+        "[absolute-path-to-git-repo]",
         "run",
         "gmail",
         "--creds-file-path",
