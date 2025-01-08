@@ -465,4 +465,4 @@ if __name__ == "__main__":
                        help='blah blah blah')
     
     args = parser.parse_args()
-    asyncio.run(main(args.creds_file_path, args.target_token_path))
+    asyncio.run(main(args.creds_file_path, args.token_path))
