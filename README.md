@@ -98,3 +98,12 @@ The following parameters must be set
 | `--creds-file-path` | Absolute path to credentials file created in Gmail API Setup. |
 | `--token-path`      | Absolute path to store and retrieve access and refresh tokens for application.  |
 
+### Troubleshooting with MCP Inspector
+
+To test the server, use [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).
+From the git repo, run the below changing the parameter arguments accordingly.
+
+```bash
+npx @modelcontextprotocol/inspector uv run [absolute-path-to-git-repo]/src/gmail/server.py --creds-file-path [absolute-path-to-credentials-file] --token-path [absolute-path-to-access-tokens-file]
+```
+

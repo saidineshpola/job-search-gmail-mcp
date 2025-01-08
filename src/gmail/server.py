@@ -18,8 +18,8 @@ import base64
 from email.message import EmailMessage
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
 
 EMAIL_ADMIN_PROMPTS = """You are an email administrator. 
 You can draft, edit, read, trash, open, and send emails.
@@ -85,16 +85,16 @@ class GmailService:
                  creds_file_path: str,
                  token_path: str,
                  scopes: list[str] = ['https://www.googleapis.com/auth/gmail.modify']):
-        logger.info(f"Initializing GmailService with creds file: {creds_file_path}")
+        # logger.info(f"Initializing GmailService with creds file: {creds_file_path}")
         self.creds_file_path = creds_file_path
         self.token_path = token_path
         self.scopes = scopes
         self.token = self._get_token()
-        logger.info("Token retrieved successfully")
+        # logger.info("Token retrieved successfully")
         self.service = self._get_service()
-        logger.info("Gmail service initialized")
+        # logger.info("Gmail service initialized")
         self.user_email = self._get_user_email()
-        logger.info(f"User email retrieved: {self.user_email}")
+        # logger.info(f"User email retrieved: {self.user_email}")
 
     def _get_token(self) -> Credentials:
         """Get or refresh Google API token"""
@@ -102,21 +102,21 @@ class GmailService:
         token = None
     
         if os.path.exists(self.token_path):
-            logger.info('Loading token from file')
+            # logger.info('Loading token from file')
             token = Credentials.from_authorized_user_file(self.token_path, self.scopes)
 
         if not token or not token.valid:
             if token and token.expired and token.refresh_token:
-                logger.info('Refreshing token')
+                # logger.info('Refreshing token')
                 token.refresh(Request())
             else:
-                logger.info('Fetching new token')
+                # logger.info('Fetching new token')
                 flow = InstalledAppFlow.from_client_secrets_file(self.creds_file_path, self.scopes)
                 token = flow.run_local_server(port=0)
 
             with open(self.token_path, 'w') as token_file:
                 token_file.write(token.to_json())
-                logger.info(f'Token saved to {self.token_path}')
+                # logger.info(f'Token saved to {self.token_path}')
 
         return token
 
@@ -126,7 +126,7 @@ class GmailService:
             service = build('gmail', 'v1', credentials=self.token)
             return service
         except HttpError as error:
-            logger.error(f'An error occurred building Gmail service: {error}')
+            # logger.error(f'An error occurred building Gmail service: {error}')
             raise ValueError(f'An error occurred: {error}')
     
     def _get_user_email(self) -> str:
@@ -151,7 +151,7 @@ class GmailService:
             send_message = await asyncio.to_thread(
                 self.service.users().messages().send(userId="me", body=create_message).execute
             )
-            logger.info(f"Message sent: {send_message['id']}")
+            # logger.info(f"Message sent: {send_message['id']}")
             return {"status": "success", "message_id": send_message["id"]}
         except HttpError as error:
             return {"status": "error", "error_message": str(error)}
@@ -204,7 +204,7 @@ class GmailService:
                     email_metadata['date'] = i['value']
                 if ['name'] == 'To':
                     email_metadata['to'] = i['value']
-            logger.info(f"Email read: {email_metadata}")
+            # logger.info(f"Email read: {email_metadata}")
             return email_metadata
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
@@ -213,7 +213,7 @@ class GmailService:
         """Moves email to trash given ID."""
         try:
             self.service.users().messages().trash(userId="me", id=email_id).execute()
-            logger.info(f"Email moved to trash: {email_id}")
+            # logger.info(f"Email moved to trash: {email_id}")
             return "Email moved to trash successfully."
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
@@ -438,7 +438,7 @@ async def main(creds_file_path: str,
             msg = await gmail_service.trash_email(email_id)
             return [types.TextContent(type="text", text=str(msg))]
         else:
-            logger.error(f"Unknown tool: {name}")
+            # logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
 
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -459,10 +459,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Gmail API MCP Server')
     parser.add_argument('--creds-file-path',
                         required=True,
-                       help='blah blah blah')
-    parser.add_argument('--target-token-path',
+                       help='OAuth 2.0 credentials file path')
+    parser.add_argument('--token-path',
                         required=True,
-                       help='blah blah blah')
+                       help='File location to store and retrieve access and refresh tokens for application')
     
     args = parser.parse_args()
     asyncio.run(main(args.creds_file_path, args.token_path))

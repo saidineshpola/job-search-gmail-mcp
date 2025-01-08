@@ -13,7 +13,7 @@ def main():
                        help='File location to store and retrieve access and refresh tokens for application')
     
     args = parser.parse_args()
-    asyncio.run(server.main(args.creds_file_path, args.target_token_path))
+    asyncio.run(server.main(args.creds_file_path, args.token_path))
 
 # Optionally expose other important items at package level
 __all__ = ['main', 'server']
