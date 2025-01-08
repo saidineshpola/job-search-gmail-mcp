@@ -39,7 +39,9 @@ This MCP server integrates with Gmail to enable sending, removing, reading, draf
   - Returns success message and opens given email in default browser
 
 
-## Gmail API Setup
+## Setup
+
+### Gmail API Setup
 
 1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
 2. [Enable the Gmail API](https://console.cloud.google.com/workspace-api/products)
