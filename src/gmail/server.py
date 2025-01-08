@@ -194,7 +194,7 @@ class GmailService:
         try:
             msg = self.service.users().messages().get(userId="me", id=email_id).execute()
             email_metadata = {}
-            email_metadata['content'] = msg['snippet']
+            email_metadata['snippet'] = msg['snippet']
             for i in msg['payload']['headers']:
                 if i['name'] == 'From':
                     email_metadata['from'] = i['value']
@@ -204,7 +204,9 @@ class GmailService:
                     email_metadata['date'] = i['value']
                 if ['name'] == 'To':
                     email_metadata['to'] = i['value']
-            logger.info(f"Email read: {email_metadata}")
+                if ['name'] == 'Body':
+                    email_metadata['content'] = i['value']
+            logger.info(f"Email ID {email_id} read")
             return email_metadata
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
