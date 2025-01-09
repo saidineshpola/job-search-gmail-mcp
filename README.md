@@ -22,6 +22,12 @@ This MCP server integrates with Gmail to enable sending, removing, reading, draf
     - `email_id` (string): Auto-generated ID of email
   - Returns success message
 
+- **mark-email-as-read**
+  - Marks email as read 
+  - Input:
+    - `email_id` (string): Auto-generated ID of email
+  - Returns success message
+
 - **get-unread-emails**
   - Retrieves unread emails 
   - Returns list of emails including email ID
@@ -30,7 +36,7 @@ This MCP server integrates with Gmail to enable sending, removing, reading, draf
   - Retrieves given email content
   - Input:
     - `email_id` (string): Auto-generated ID of email
-  - Returns dictionary of email metadata
+  - Returns dictionary of email metadata and marks email as read
 
 - **open-email**
   - Open email in browser
