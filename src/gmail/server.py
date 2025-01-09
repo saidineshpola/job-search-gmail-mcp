@@ -392,12 +392,7 @@ async def main(creds_file_path: str,
                 description="Retrieve unread emails",
                 inputSchema={
                     "type": "object",
-                    "properties": {
-                        "dummy_variable": {
-                            "type": "string",
-                            "description": "Dummy variable that will not be passed",
-                        },
-                    },
+                    "properties": {"":""},
                     "required": None
                 },
             ),
