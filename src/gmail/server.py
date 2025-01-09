@@ -3,19 +3,25 @@ import argparse
 import os
 import asyncio
 import logging
+import base64
+from email.message import EmailMessage
+from email.header import decode_header
+from base64 import urlsafe_b64decode
+from email import message_from_bytes
+import webbrowser
+
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
-import webbrowser
+
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import base64
-from email.message import EmailMessage
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -79,6 +85,22 @@ PROMPTS = {
         ],
     ),
 }
+
+
+def decode_mime_header(header: str) -> str: 
+    """Helper function to decode encoded email headers"""
+    
+    decoded_parts = decode_header(header)
+    decoded_string = ''
+    for part, encoding in decoded_parts: 
+        if isinstance(part, bytes): 
+            # Decode bytes to string using the specified encoding 
+            decoded_string += part.decode(encoding or 'utf-8') 
+        else: 
+            # Already a string 
+            decoded_string += part 
+    return decoded_string
+
 
 class GmailService:
     def __init__(self,
@@ -192,21 +214,40 @@ class GmailService:
     async def read_email(self, email_id: str) -> dict[str, str]| str:
         """Retrieves email contents including to, from, subject, and contents."""
         try:
-            msg = self.service.users().messages().get(userId="me", id=email_id).execute()
+            msg = self.service.users().messages().get(userId="me", id=email_id, format='raw').execute()
             email_metadata = {}
-            email_metadata['snippet'] = msg['snippet']
-            for i in msg['payload']['headers']:
-                if i['name'] == 'From':
-                    email_metadata['from'] = i['value']
-                if i['name'] == 'Subject':
-                    email_metadata['subject'] = i['value']
-                if i['name'] == 'Date':
-                    email_metadata['date'] = i['value']
-                if ['name'] == 'To':
-                    email_metadata['to'] = i['value']
-                if ['name'] == 'Body':
-                    email_metadata['content'] = i['value']
-            logger.info(f"Email ID {email_id} read")
+
+            # Decode the base64URL encoded raw content
+            raw_data = msg['raw']
+            decoded_data = urlsafe_b64decode(raw_data)
+
+            # Parse the RFC 2822 email
+            mime_message = message_from_bytes(decoded_data)
+
+            # Extract the email body
+            body = None
+            if mime_message.is_multipart():
+                for part in mime_message.walk():
+                    # Extract the text/plain part
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode()
+                        break
+            else:
+                # For non-multipart messages
+                body = mime_message.get_payload(decode=True).decode()
+            email_metadata['content'] = body
+            
+            # Extract metadata
+            email_metadata['subject'] = decode_mime_header(mime_message.get('subject', ''))
+            email_metadata['from'] = mime_message.get('from','')
+            email_metadata['to'] = mime_message.get('to','')
+            email_metadata['date'] = mime_message.get('date','')
+            
+            logger.info(f"Email read: {email_id}")
+            
+            # We want to mark email as read once we read it
+            await self.mark_email_as_read(email_id)
+
             return email_metadata
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
@@ -217,6 +258,15 @@ class GmailService:
             self.service.users().messages().trash(userId="me", id=email_id).execute()
             logger.info(f"Email moved to trash: {email_id}")
             return "Email moved to trash successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+        
+    async def mark_email_as_read(self, email_id: str) -> str:
+        """Marks email as read given ID."""
+        try:
+            self.service.users().messages().modify(userId="me", id=email_id, body={'removeLabelIds': ['UNREAD']}).execute()
+            logger.info(f"Email marked as read: {email_id}")
+            return "Email marked as read."
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
   
@@ -366,6 +416,20 @@ async def main(creds_file_path: str,
                 },
             ),
             types.Tool(
+                name="mark-email-as-read",
+                description="Marks given email as read",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID",
+                        },
+                    },
+                    "required": ["email_id"],
+                },
+            ),
+            types.Tool(
                 name="open-email",
                 description="Open email in browser",
                 inputSchema={
@@ -438,6 +502,13 @@ async def main(creds_file_path: str,
                 raise ValueError("Missing email ID parameter")
                 
             msg = await gmail_service.trash_email(email_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        if name == "mark-email-as-read":
+            email_id = arguments.get("email_id")
+            if not email_id:
+                raise ValueError("Missing email ID parameter")
+                
+            msg = await gmail_service.mark_email_as_read(email_id)
             return [types.TextContent(type="text", text=str(msg))]
         else:
             logger.error(f"Unknown tool: {name}")
