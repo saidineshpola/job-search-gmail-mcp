@@ -32,10 +32,17 @@ You can draft, edit, read, trash, open, and send emails.
 You've been given access to a specific gmail account. 
 You have the following tools available:
 - Send an email (send-email)
+- Create a draft email (create-draft)
+- List draft emails (list-drafts)
 - Retrieve unread emails (get-unread-emails)
 - Read email content (read-email)
-- Trash email (tras-email)
+- Trash email (trash-email)
 - Open email in browser (open-email)
+- List all labels (list-labels)
+- Create a new label (create-label)
+- Apply a label to an email (apply-label)
+- Remove a label from an email (remove-label)
+- Search for emails with a specific label (search-by-label)
 Never send an email draft or trash an email unless the user confirms first. 
 Always ask for approval if not already given.
 """
@@ -80,6 +87,17 @@ PROMPTS = {
             types.PromptArgument(
                 name="current_draft",
                 description="The current draft to edit",
+                required=True
+            ),
+        ],
+    ),
+    "manage-labels": types.Prompt(
+        name="manage-labels",
+        description="Manage email labels for organization",
+        arguments=[
+            types.PromptArgument(
+                name="action",
+                description="What action to take with labels (create, list, apply, remove, search)",
                 required=True
             ),
         ],
@@ -269,6 +287,161 @@ class GmailService:
             return "Email marked as read."
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def create_draft(self, recipient_id: str, subject: str, message: str) -> dict:
+        """Creates a draft email message"""
+        try:
+            message_obj = EmailMessage()
+            message_obj.set_content(message)
+            
+            message_obj['To'] = recipient_id
+            message_obj['From'] = self.user_email
+            message_obj['Subject'] = subject
+
+            encoded_message = base64.urlsafe_b64encode(message_obj.as_bytes()).decode()
+            create_message = {'raw': encoded_message}
+            
+            draft = await asyncio.to_thread(
+                self.service.users().drafts().create(userId="me", body={'message': create_message}).execute
+            )
+            logger.info(f"Draft created: {draft['id']}")
+            return {"status": "success", "draft_id": draft["id"]}
+        except HttpError as error:
+            return {"status": "error", "error_message": str(error)}
+    
+    async def list_drafts(self) -> list[dict] | str:
+        """Lists all draft emails"""
+        try:
+            results = await asyncio.to_thread(
+                self.service.users().drafts().list(userId="me").execute
+            )
+            drafts = results.get('drafts', [])
+            
+            draft_list = []
+            for draft in drafts:
+                draft_id = draft['id']
+                # Get the draft details to extract subject and recipient
+                draft_data = await asyncio.to_thread(
+                    self.service.users().drafts().get(userId="me", id=draft_id).execute
+                )
+                
+                message = draft_data.get('message', {})
+                headers = message.get('payload', {}).get('headers', [])
+                
+                subject = next((header['value'] for header in headers if header['name'].lower() == 'subject'), 'No Subject')
+                to = next((header['value'] for header in headers if header['name'].lower() == 'to'), 'No Recipient')
+                
+                draft_list.append({
+                    'id': draft_id,
+                    'subject': subject,
+                    'to': to
+                })
+                
+            return draft_list
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def list_labels(self) -> list[dict] | str:
+        """Lists all labels in the user's mailbox"""
+        try:
+            results = await asyncio.to_thread(
+                self.service.users().labels().list(userId="me").execute
+            )
+            labels = results.get('labels', [])
+            
+            label_list = []
+            for label in labels:
+                label_list.append({
+                    'id': label['id'],
+                    'name': label['name'],
+                    'type': label['type']  # 'system' or 'user'
+                })
+                
+            return label_list
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def create_label(self, name: str) -> dict | str:
+        """Creates a new label"""
+        try:
+            label_object = {
+                'name': name,
+                'labelListVisibility': 'labelShow',  # Show in label list
+                'messageListVisibility': 'show'  # Show in message list
+            }
+            
+            created_label = await asyncio.to_thread(
+                self.service.users().labels().create(userId="me", body=label_object).execute
+            )
+            
+            logger.info(f"Label created: {created_label['id']}")
+            return {
+                'status': 'success',
+                'label_id': created_label['id'],
+                'name': created_label['name']
+            }
+        except HttpError as error:
+            return {"status": "error", "error_message": str(error)}
+    
+    async def apply_label(self, email_id: str, label_id: str) -> str:
+        """Applies a label to an email"""
+        try:
+            await asyncio.to_thread(
+                self.service.users().messages().modify(
+                    userId="me", 
+                    id=email_id, 
+                    body={'addLabelIds': [label_id]}
+                ).execute
+            )
+            
+            logger.info(f"Label {label_id} applied to email {email_id}")
+            return f"Label applied successfully to email."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def remove_label(self, email_id: str, label_id: str) -> str:
+        """Removes a label from an email"""
+        try:
+            await asyncio.to_thread(
+                self.service.users().messages().modify(
+                    userId="me", 
+                    id=email_id, 
+                    body={'removeLabelIds': [label_id]}
+                ).execute
+            )
+            
+            logger.info(f"Label {label_id} removed from email {email_id}")
+            return f"Label removed successfully from email."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def search_by_label(self, label_id: str) -> list[dict] | str:
+        """Searches for emails with a specific label"""
+        try:
+            query = f"label:{label_id}"
+            
+            response = await asyncio.to_thread(
+                self.service.users().messages().list(userId="me", q=query).execute
+            )
+            
+            messages = []
+            if 'messages' in response:
+                messages.extend(response['messages'])
+
+            while 'nextPageToken' in response:
+                page_token = response['nextPageToken']
+                response = await asyncio.to_thread(
+                    self.service.users().messages().list(
+                        userId="me", 
+                        q=query,
+                        pageToken=page_token
+                    ).execute
+                )
+                messages.extend(response['messages'])
+                
+            return messages
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -338,6 +511,31 @@ async def main(creds_file_path: str,
                             {changes}
                             
                             Please provide the updated draft."""
+                        )
+                    )
+                ]
+            )
+        
+        elif name == "manage-labels":
+            action = arguments.get("action", "")
+            
+            # Guide the LLM on how to manage labels
+            return types.GetPromptResult(
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(
+                            type="text",
+                            text=f"""I need help with managing my email labels. Specifically, I want to {action}.
+
+Here are the tools you can use for label management:
+- list-labels: Lists all existing labels in my Gmail account
+- create-label: Creates a new label with a specified name
+- apply-label: Applies a label to a specific email
+- remove-label: Removes a label from a specific email
+- search-by-label: Finds all emails with a specific label
+
+Please help me {action} by using the appropriate tools. If you need to list labels first to get label IDs, please do so."""
                         )
                     )
                 ]
@@ -438,6 +636,110 @@ async def main(creds_file_path: str,
                     "required": ["email_id"],
                 },
             ),
+            types.Tool(
+                name="create-draft",
+                description="Creates a draft email without sending it",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "recipient_id": {
+                            "type": "string",
+                            "description": "Recipient email address",
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Email subject",
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Email content text",
+                        },
+                    },
+                    "required": ["recipient_id", "subject", "message"],
+                },
+            ),
+            types.Tool(
+                name="list-drafts",
+                description="Lists all draft emails",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                },
+            ),
+            types.Tool(
+                name="list-labels",
+                description="Lists all labels in the user's mailbox",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                },
+            ),
+            types.Tool(
+                name="create-label",
+                description="Creates a new label",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Label name",
+                        },
+                    },
+                    "required": ["name"],
+                },
+            ),
+            types.Tool(
+                name="apply-label",
+                description="Applies a label to an email",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID",
+                        },
+                        "label_id": {
+                            "type": "string",
+                            "description": "Label ID",
+                        },
+                    },
+                    "required": ["email_id", "label_id"],
+                },
+            ),
+            types.Tool(
+                name="remove-label",
+                description="Removes a label from an email",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID",
+                        },
+                        "label_id": {
+                            "type": "string",
+                            "description": "Label ID",
+                        },
+                    },
+                    "required": ["email_id", "label_id"],
+                },
+            ),
+            types.Tool(
+                name="search-by-label",
+                description="Searches for emails with a specific label",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "label_id": {
+                            "type": "string",
+                            "description": "Label ID",
+                        },
+                    },
+                    "required": ["label_id"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -505,6 +807,54 @@ async def main(creds_file_path: str,
                 
             msg = await gmail_service.mark_email_as_read(email_id)
             return [types.TextContent(type="text", text=str(msg))]
+        elif name == "create-draft":
+            recipient_id = arguments.get("recipient_id")
+            subject = arguments.get("subject")
+            message = arguments.get("message")
+            if not recipient_id or not subject or not message:
+                raise ValueError("Missing required parameters for creating a draft")
+            draft_response = await gmail_service.create_draft(recipient_id, subject, message)
+            if draft_response["status"] == "success":
+                response_text = f"Draft created successfully. Draft ID: {draft_response['draft_id']}"
+            else:
+                response_text = f"Failed to create draft: {draft_response['error_message']}"
+            return [types.TextContent(type="text", text=response_text)]
+        elif name == "list-drafts":
+            drafts = await gmail_service.list_drafts()
+            return [types.TextContent(type="text", text=str(drafts), artifact={"type": "json", "data": drafts})]
+        elif name == "list-labels":
+            labels = await gmail_service.list_labels()
+            return [types.TextContent(type="text", text=str(labels), artifact={"type": "json", "data": labels})]
+        elif name == "create-label":
+            name = arguments.get("name")
+            if not name:
+                raise ValueError("Missing required parameter for creating a label")
+            label_response = await gmail_service.create_label(name)
+            if label_response["status"] == "success":
+                response_text = f"Label created successfully. Label ID: {label_response['label_id']}, Name: {label_response['name']}"
+            else:
+                response_text = f"Failed to create label: {label_response['error_message']}"
+            return [types.TextContent(type="text", text=response_text)]
+        elif name == "apply-label":
+            email_id = arguments.get("email_id")
+            label_id = arguments.get("label_id")
+            if not email_id or not label_id:
+                raise ValueError("Missing required parameters for applying a label")
+            msg = await gmail_service.apply_label(email_id, label_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        elif name == "remove-label":
+            email_id = arguments.get("email_id")
+            label_id = arguments.get("label_id")
+            if not email_id or not label_id:
+                raise ValueError("Missing required parameters for removing a label")
+            msg = await gmail_service.remove_label(email_id, label_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        elif name == "search-by-label":
+            label_id = arguments.get("label_id")
+            if not label_id:
+                raise ValueError("Missing required parameter for searching by label")
+            messages = await gmail_service.search_by_label(label_id)
+            return [types.TextContent(type="text", text=str(messages), artifact={"type": "json", "data": messages})]
         else:
             logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
