@@ -48,6 +48,9 @@ You have the following tools available:
 - Get details of a specific filter (get-filter)
 - Create a new email filter (create-filter)
 - Delete a filter (delete-filter)
+- Create a new folder (create-folder)
+- Move an email to a folder (move-to-folder)
+- List all folders (list-folders)
 
 Never send an email draft or trash an email unless the user confirms first. 
 Always ask for approval if not already given.
@@ -126,6 +129,17 @@ PROMPTS = {
             types.PromptArgument(
                 name="query",
                 description="What to search for in emails",
+                required=True
+            ),
+        ],
+    ),
+    "manage-folders": types.Prompt(
+        name="manage-folders",
+        description="Manage email folders for organization",
+        arguments=[
+            types.PromptArgument(
+                name="action",
+                description="What action to take with folders (create, list, move)",
                 required=True
             ),
         ],
@@ -659,6 +673,93 @@ class GmailService:
             
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def create_folder(self, name: str) -> dict | str:
+        """
+        Creates a new folder (implemented as a label with special handling).
+        
+        Args:
+            name: Name of the folder to create
+            
+        Returns:
+            Dictionary with status and folder information or error message
+        """
+        try:
+            # In Gmail, folders are just labels with special visibility settings
+            label_object = {
+                'name': name,
+                'labelListVisibility': 'labelShow',
+                'messageListVisibility': 'show',
+                'type': 'user'  # Ensure it's a user label
+            }
+            
+            created_label = await asyncio.to_thread(
+                self.service.users().labels().create(userId="me", body=label_object).execute
+            )
+            
+            logger.info(f"Folder created: {created_label['id']}")
+            return {
+                'status': 'success',
+                'folder_id': created_label['id'],
+                'name': created_label['name']
+            }
+        except HttpError as error:
+            return {"status": "error", "error_message": str(error)}
+    
+    async def move_to_folder(self, email_id: str, folder_id: str) -> str:
+        """
+        Moves an email to a folder by:
+        1. Applying the folder label
+        2. Removing the INBOX label (to remove from inbox)
+        
+        Args:
+            email_id: ID of the email to move
+            folder_id: ID of the folder (label) to move to
+            
+        Returns:
+            Success or error message
+        """
+        try:
+            # First, apply the folder label
+            await asyncio.to_thread(
+                self.service.users().messages().modify(
+                    userId="me", 
+                    id=email_id, 
+                    body={'addLabelIds': [folder_id], 'removeLabelIds': ['INBOX']}
+                ).execute
+            )
+            
+            logger.info(f"Email {email_id} moved to folder {folder_id}")
+            return f"Email moved to folder successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def list_folders(self) -> list[dict] | str:
+        """
+        Lists all user-created labels (folders)
+        
+        Returns:
+            List of folder information or error message
+        """
+        try:
+            results = await asyncio.to_thread(
+                self.service.users().labels().list(userId="me").execute
+            )
+            labels = results.get('labels', [])
+            
+            # Filter to only include user-created labels (folders)
+            folders = [
+                {
+                    'id': label['id'],
+                    'name': label['name']
+                }
+                for label in labels
+                if label['type'] == 'user'
+            ]
+                
+            return folders
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -809,6 +910,31 @@ Please help me find emails matching my search criteria. You can use Gmail's sear
 - label:name - Emails with a specific label
 
 Please search for emails matching: {query}"""
+                        )
+                    )
+                ]
+            )
+            
+        elif name == "manage-folders":
+            action = arguments.get("action", "")
+            
+            # Guide the LLM on how to manage folders
+            return types.GetPromptResult(
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(
+                            type="text",
+                            text=f"""I need help with managing my email folders. Specifically, I want to {action}.
+
+Here are the tools you can use for folder management:
+- list-folders: Lists all existing folders in my Gmail account
+- create-folder: Creates a new folder with a specified name
+- move-to-folder: Moves an email to a specific folder (removes it from inbox)
+
+Please help me {action} by using the appropriate tools. If you need to list folders first to get folder IDs, please do so.
+
+Note: In Gmail, folders are implemented as labels with special handling. When you move an email to a folder, it applies the folder's label and removes the email from the inbox."""
                         )
                     )
                 ]
@@ -1127,6 +1253,47 @@ Please search for emails matching: {query}"""
                     "required": ["query"],
                 },
             ),
+            types.Tool(
+                name="create-folder",
+                description="Creates a new folder",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Folder name",
+                        },
+                    },
+                    "required": ["name"],
+                },
+            ),
+            types.Tool(
+                name="move-to-folder",
+                description="Moves an email to a folder",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID",
+                        },
+                        "folder_id": {
+                            "type": "string",
+                            "description": "Folder ID",
+                        },
+                    },
+                    "required": ["email_id", "folder_id"],
+                },
+            ),
+            types.Tool(
+                name="list-folders",
+                description="Lists all user-created folders",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -1284,6 +1451,26 @@ Please search for emails matching: {query}"""
                 raise ValueError("Missing required parameter for searching emails")
             messages = await gmail_service.search_emails(query, max_results)
             return [types.TextContent(type="text", text=str(messages), artifact={"type": "json", "data": messages})]
+        elif name == "create-folder":
+            name = arguments.get("name")
+            if not name:
+                raise ValueError("Missing required parameter for creating a folder")
+            folder_response = await gmail_service.create_folder(name)
+            if folder_response["status"] == "success":
+                response_text = f"Folder created successfully. Folder ID: {folder_response['folder_id']}, Name: {folder_response['name']}"
+            else:
+                response_text = f"Failed to create folder: {folder_response['error_message']}"
+            return [types.TextContent(type="text", text=response_text)]
+        elif name == "move-to-folder":
+            email_id = arguments.get("email_id")
+            folder_id = arguments.get("folder_id")
+            if not email_id or not folder_id:
+                raise ValueError("Missing required parameters for moving an email to a folder")
+            msg = await gmail_service.move_to_folder(email_id, folder_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        elif name == "list-folders":
+            folders = await gmail_service.list_folders()
+            return [types.TextContent(type="text", text=str(folders), artifact={"type": "json", "data": folders})]
         else:
             logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
