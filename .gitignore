@@ -9,23 +9,3 @@ wheels/
 
 # Virtual environments
 .venv
-venv/
-ENV/
-
-# Credentials and tokens
-*.json
-!pyproject.json
-token.pickle
-credentials.json
-client_secret*.json
-*_tokens.json
-*_creds.json
-
-# IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Logs
-*.log
