@@ -10,6 +10,8 @@ https://github.com/user-attachments/assets/5794cd16-00d2-45a2-884a-8ba0c3a90c90
 
 This project was inspired by and adapted from [mcp-gsuite](https://github.com/MarkusPfundstein/mcp-gsuite) by Markus Pfundstein. The original project has been enhanced with additional features and improvements.
 
+Special thanks to Jason Summer and other contributors who developed the initial implementation of this Gmail MCP server that this repository builds upon.
+
 ## Installation
 
 ### From GitHub
