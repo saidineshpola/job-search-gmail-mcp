@@ -53,6 +53,10 @@ You have the following tools available:
 - Create a new folder (create-folder)
 - Move an email to a folder (move-to-folder)
 - List all folders (list-folders)
+- Archive an email (archive-email)
+- Batch archive emails (batch-archive)
+- List archived emails (list-archived)
+- Restore an email to inbox (restore-to-inbox)
 
 Never send an email draft or trash an email unless the user confirms first. 
 Always ask for approval if not already given.
@@ -142,6 +146,17 @@ PROMPTS = {
             types.PromptArgument(
                 name="action",
                 description="What action to take with folders (create, list, move)",
+                required=True
+            ),
+        ],
+    ),
+    "manage-archive": types.Prompt(
+        name="manage-archive",
+        description="Manage archived emails",
+        arguments=[
+            types.PromptArgument(
+                name="action",
+                description="What action to take with archives (archive, batch-archive, list, restore)",
                 required=True
             ),
         ],
@@ -823,6 +838,135 @@ class GmailService:
             return f"Label deleted successfully."
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def archive_email(self, email_id: str) -> str:
+        """
+        Archives an email by removing the INBOX label
+        
+        Args:
+            email_id: ID of the email to archive
+            
+        Returns:
+            Success or error message
+        """
+        try:
+            await asyncio.to_thread(
+                self.service.users().messages().modify(
+                    userId="me", 
+                    id=email_id, 
+                    body={'removeLabelIds': ['INBOX']}
+                ).execute
+            )
+            
+            logger.info(f"Email archived: {email_id}")
+            return f"Email archived successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def batch_archive(self, query: str, max_emails: int = 100) -> dict:
+        """
+        Archives multiple emails matching a search query
+        
+        Args:
+            query: Gmail search query to find emails to archive
+            max_emails: Maximum number of emails to archive in one batch
+            
+        Returns:
+            Dictionary with status and count of archived emails
+        """
+        try:
+            # First, search for emails matching the query
+            user_id = 'me'
+            
+            response = await asyncio.to_thread(
+                self.service.users().messages().list(
+                    userId=user_id,
+                    q=query,
+                    maxResults=max_emails
+                ).execute
+            )
+            
+            messages = []
+            if 'messages' in response:
+                messages.extend(response['messages'])
+            
+            if not messages:
+                return {
+                    'status': 'success',
+                    'archived_count': 0,
+                    'message': 'No emails found matching the query.'
+                }
+            
+            # Archive each email in the batch
+            archived_count = 0
+            for msg in messages:
+                try:
+                    await asyncio.to_thread(
+                        self.service.users().messages().modify(
+                            userId="me", 
+                            id=msg['id'], 
+                            body={'removeLabelIds': ['INBOX']}
+                        ).execute
+                    )
+                    archived_count += 1
+                except Exception as e:
+                    logger.error(f"Error archiving email {msg['id']}: {str(e)}")
+            
+            logger.info(f"Batch archived {archived_count} emails")
+            return {
+                'status': 'success',
+                'archived_count': archived_count,
+                'total_found': len(messages),
+                'message': f"Successfully archived {archived_count} out of {len(messages)} emails."
+            }
+        except HttpError as error:
+            return {
+                'status': 'error',
+                'error_message': str(error)
+            }
+    
+    async def list_archived(self, max_results: int = 50) -> list[dict] | str:
+        """
+        Lists archived emails (emails not in inbox)
+        
+        Args:
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of archived email objects or error message
+        """
+        try:
+            # Search for emails that are in "All Mail" but not in "Inbox"
+            query = "-in:inbox"
+            
+            # Use the existing search_emails method
+            return await self.search_emails(query, max_results)
+        except Exception as error:
+            return f"An error occurred: {str(error)}"
+    
+    async def restore_to_inbox(self, email_id: str) -> str:
+        """
+        Restores an archived email to the inbox
+        
+        Args:
+            email_id: ID of the email to restore
+            
+        Returns:
+            Success or error message
+        """
+        try:
+            await asyncio.to_thread(
+                self.service.users().messages().modify(
+                    userId="me", 
+                    id=email_id, 
+                    body={'addLabelIds': ['INBOX']}
+                ).execute
+            )
+            
+            logger.info(f"Email restored to inbox: {email_id}")
+            return f"Email restored to inbox successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -1000,6 +1144,39 @@ Here are the tools you can use for folder management:
 Please help me {action} by using the appropriate tools. If you need to list folders first to get folder IDs, please do so.
 
 Note: In Gmail, folders are implemented as labels with special handling. When you move an email to a folder, it applies the folder's label and removes the email from the inbox."""
+                        )
+                    )
+                ]
+            )
+            
+        elif name == "manage-archive":
+            action = arguments.get("action", "")
+            
+            # Guide the LLM on how to manage archives
+            return types.GetPromptResult(
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(
+                            type="text",
+                            text=f"""I need help with managing my email archives. Specifically, I want to {action}.
+
+Here are the tools you can use for archive management:
+- archive-email: Archives a single email (removes from inbox without deleting)
+- batch-archive: Archives multiple emails matching a search query
+- list-archived: Lists emails that have been archived
+- restore-to-inbox: Restores an archived email back to the inbox
+
+Please help me {action} by using the appropriate tools.
+
+For batch archiving, you can use Gmail's search syntax to find emails to archive:
+- from:sender - Emails from a specific sender
+- older_than:30d - Emails older than 30 days
+- has:attachment - Emails with attachments
+- subject:text - Emails with specific text in the subject
+- before:YYYY/MM/DD - Emails before a specific date
+
+Note: Archiving in Gmail means removing the email from your inbox while keeping it accessible in "All Mail". It's a great way to declutter your inbox without losing any emails."""
                         )
                     )
                 ]
@@ -1391,6 +1568,66 @@ Note: In Gmail, folders are implemented as labels with special handling. When yo
                     "required": []
                 },
             ),
+            types.Tool(
+                name="archive-email",
+                description="Archives an email (removes from inbox without deleting)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID to archive",
+                        },
+                    },
+                    "required": ["email_id"],
+                },
+            ),
+            types.Tool(
+                name="batch-archive",
+                description="Archives multiple emails matching a search query",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Gmail search query to find emails to archive",
+                        },
+                        "max_emails": {
+                            "type": "integer",
+                            "description": "Maximum number of emails to archive (default: 100)",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            ),
+            types.Tool(
+                name="list-archived",
+                description="Lists archived emails (not in inbox)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return",
+                        },
+                    },
+                    "required": [],
+                },
+            ),
+            types.Tool(
+                name="restore-to-inbox",
+                description="Restores an archived email back to the inbox",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "email_id": {
+                            "type": "string",
+                            "description": "Email ID to restore to inbox",
+                        },
+                    },
+                    "required": ["email_id"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -1584,6 +1821,29 @@ Note: In Gmail, folders are implemented as labels with special handling. When yo
             if not label_id:
                 raise ValueError("Missing required parameter for deleting a label")
             msg = await gmail_service.delete_label(label_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        elif name == "archive-email":
+            email_id = arguments.get("email_id")
+            if not email_id:
+                raise ValueError("Missing required parameter for archiving an email")
+            msg = await gmail_service.archive_email(email_id)
+            return [types.TextContent(type="text", text=str(msg))]
+        elif name == "batch-archive":
+            query = arguments.get("query")
+            max_emails = arguments.get("max_emails", 100)
+            if not query:
+                raise ValueError("Missing required parameter for batch archiving")
+            archive_response = await gmail_service.batch_archive(query, max_emails)
+            return [types.TextContent(type="text", text=str(archive_response))]
+        elif name == "list-archived":
+            max_results = arguments.get("max_results", 50)
+            archived_emails = await gmail_service.list_archived(max_results)
+            return [types.TextContent(type="text", text=str(archived_emails), artifact={"type": "json", "data": archived_emails})]
+        elif name == "restore-to-inbox":
+            email_id = arguments.get("email_id")
+            if not email_id:
+                raise ValueError("Missing required parameter for restoring an email to inbox")
+            msg = await gmail_service.restore_to_inbox(email_id)
             return [types.TextContent(type="text", text=str(msg))]
         else:
             logger.error(f"Unknown tool: {name}")
