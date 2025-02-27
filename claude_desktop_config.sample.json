@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "gmail": {
+      "command": "/path/to/your/python/or/uv",
+      "args": [
+        "--directory",
+        "/path/to/gmail-mcp-server",
+        "run",
+        "gmail",
+        "--creds-file-path",
+        "/path/to/your/client_creds.json",
+        "--token-path",
+        "/path/to/your/app_tokens.json"
+      ]
+    }
+  }
+} 
