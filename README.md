@@ -6,6 +6,22 @@ This MCP server integrates with Gmail to enable sending, removing, reading, draf
 
 https://github.com/user-attachments/assets/5794cd16-00d2-45a2-884a-8ba0c3a90c90
 
+## Installation
+
+### From GitHub
+
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/gmail-mcp-server.git
+cd gmail-mcp-server
+
+# Set up a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install the package in development mode
+pip install -e .
+```
 
 ## Components
 
@@ -85,7 +101,7 @@ To integrate this server with Claude Desktop as the MCP Client, add the followin
 ```json
 {
   "mcpServers": {
-    "gdrive": {
+    "gmail": {
       "command": "uv",
       "args": [
         "--directory",
@@ -117,4 +133,34 @@ From the git repo, run the below changing the parameter arguments accordingly.
 ```bash
 npx @modelcontextprotocol/inspector uv run [absolute-path-to-git-repo]/src/gmail/server.py --creds-file-path [absolute-path-to-credentials-file] --token-path [absolute-path-to-access-tokens-file]
 ```
+
+## Contributing
+
+Contributions are welcome! Here's how you can contribute to this project:
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/your-feature-name`)
+3. Make your changes
+4. Run tests if available
+5. Commit your changes (`git commit -m 'Add some feature'`)
+6. Push to the branch (`git push origin feature/your-feature-name`)
+7. Open a Pull Request
+
+### Development Setup
+
+For development, it's recommended to install the package in development mode:
+
+```bash
+pip install -e .
+```
+
+### Security Considerations
+
+- **Never commit your credentials or token files to the repository**
+- The `.gitignore` file is set up to exclude common credential file patterns
+- Use the sample configuration files as templates and create your own local copies
+
+## License
+
+This project is licensed under the terms of the LICENSE file included in the repository.
 
