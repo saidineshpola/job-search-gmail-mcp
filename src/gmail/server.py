@@ -42,6 +42,8 @@ You have the following tools available:
 - Create a new label (create-label)
 - Apply a label to an email (apply-label)
 - Remove a label from an email (remove-label)
+- Rename a label (rename-label)
+- Delete a label (delete-label)
 - Search for emails with a specific label (search-by-label)
 - Search for emails using Gmail's search syntax (search-emails)
 - List all email filters (list-filters)
@@ -760,6 +762,67 @@ class GmailService:
             return folders
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def rename_label(self, label_id: str, new_name: str) -> dict | str:
+        """
+        Renames an existing label
+        
+        Args:
+            label_id: ID of the label to rename
+            new_name: New name for the label
+            
+        Returns:
+            Dictionary with status and updated label information or error message
+        """
+        try:
+            # First, get the current label to preserve its settings
+            label = await asyncio.to_thread(
+                self.service.users().labels().get(userId="me", id=label_id).execute
+            )
+            
+            # Update only the name field
+            label['name'] = new_name
+            
+            # Update the label
+            updated_label = await asyncio.to_thread(
+                self.service.users().labels().update(
+                    userId="me", 
+                    id=label_id, 
+                    body=label
+                ).execute
+            )
+            
+            logger.info(f"Label renamed: {label_id} to {new_name}")
+            return {
+                'status': 'success',
+                'label_id': updated_label['id'],
+                'name': updated_label['name']
+            }
+        except HttpError as error:
+            return {"status": "error", "error_message": str(error)}
+    
+    async def delete_label(self, label_id: str) -> str:
+        """
+        Deletes a label
+        
+        Args:
+            label_id: ID of the label to delete
+            
+        Returns:
+            Success or error message
+        """
+        try:
+            await asyncio.to_thread(
+                self.service.users().labels().delete(
+                    userId="me", 
+                    id=label_id
+                ).execute
+            )
+            
+            logger.info(f"Label deleted: {label_id}")
+            return f"Label deleted successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -851,6 +914,8 @@ Here are the tools you can use for label management:
 - create-label: Creates a new label with a specified name
 - apply-label: Applies a label to a specific email
 - remove-label: Removes a label from a specific email
+- rename-label: Renames an existing label
+- delete-label: Permanently deletes a label
 - search-by-label: Finds all emails with a specific label
 
 Please help me {action} by using the appropriate tools. If you need to list labels first to get label IDs, please do so."""
@@ -1123,6 +1188,38 @@ Note: In Gmail, folders are implemented as labels with special handling. When yo
                         },
                     },
                     "required": ["email_id", "label_id"],
+                },
+            ),
+            types.Tool(
+                name="rename-label",
+                description="Renames an existing label",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "label_id": {
+                            "type": "string",
+                            "description": "Label ID to rename",
+                        },
+                        "new_name": {
+                            "type": "string",
+                            "description": "New name for the label",
+                        },
+                    },
+                    "required": ["label_id", "new_name"],
+                },
+            ),
+            types.Tool(
+                name="delete-label",
+                description="Permanently deletes a label",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "label_id": {
+                            "type": "string",
+                            "description": "Label ID to delete",
+                        },
+                    },
+                    "required": ["label_id"],
                 },
             ),
             types.Tool(
@@ -1471,6 +1568,23 @@ Note: In Gmail, folders are implemented as labels with special handling. When yo
         elif name == "list-folders":
             folders = await gmail_service.list_folders()
             return [types.TextContent(type="text", text=str(folders), artifact={"type": "json", "data": folders})]
+        elif name == "rename-label":
+            label_id = arguments.get("label_id")
+            new_name = arguments.get("new_name")
+            if not label_id or not new_name:
+                raise ValueError("Missing required parameters for renaming a label")
+            rename_response = await gmail_service.rename_label(label_id, new_name)
+            if rename_response["status"] == "success":
+                response_text = f"Label renamed successfully. Label ID: {rename_response['label_id']}, New name: {rename_response['name']}"
+            else:
+                response_text = f"Failed to rename label: {rename_response['error_message']}"
+            return [types.TextContent(type="text", text=response_text)]
+        elif name == "delete-label":
+            label_id = arguments.get("label_id")
+            if not label_id:
+                raise ValueError("Missing required parameter for deleting a label")
+            msg = await gmail_service.delete_label(label_id)
+            return [types.TextContent(type="text", text=str(msg))]
         else:
             logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
