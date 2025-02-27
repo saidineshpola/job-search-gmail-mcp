@@ -6,13 +6,17 @@ This MCP server integrates with Gmail to enable sending, removing, reading, draf
 
 https://github.com/user-attachments/assets/5794cd16-00d2-45a2-884a-8ba0c3a90c90
 
+## Credits
+
+This project was inspired by and adapted from [mcp-gsuite](https://github.com/MarkusPfundstein/mcp-gsuite) by Markus Pfundstein. The original project has been enhanced with additional features and improvements.
+
 ## Installation
 
 ### From GitHub
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/gmail-mcp-server.git
+git clone https://github.com/theposch/gmail-mcp-server.git
 cd gmail-mcp-server
 
 # Set up a virtual environment (recommended)
