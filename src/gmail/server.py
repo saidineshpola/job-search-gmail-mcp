@@ -43,6 +43,11 @@ You have the following tools available:
 - Apply a label to an email (apply-label)
 - Remove a label from an email (remove-label)
 - Search for emails with a specific label (search-by-label)
+- List all email filters (list-filters)
+- Get details of a specific filter (get-filter)
+- Create a new email filter (create-filter)
+- Delete a filter (delete-filter)
+
 Never send an email draft or trash an email unless the user confirms first. 
 Always ask for approval if not already given.
 """
@@ -98,6 +103,17 @@ PROMPTS = {
             types.PromptArgument(
                 name="action",
                 description="What action to take with labels (create, list, apply, remove, search)",
+                required=True
+            ),
+        ],
+    ),
+    "manage-filters": types.Prompt(
+        name="manage-filters",
+        description="Manage email filters for automation",
+        arguments=[
+            types.PromptArgument(
+                name="action",
+                description="What action to take with filters (create, list, view, delete)",
                 required=True
             ),
         ],
@@ -442,6 +458,123 @@ class GmailService:
             return messages
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def list_filters(self) -> list[dict] | str:
+        """Lists all filters in the user's mailbox"""
+        try:
+            results = await asyncio.to_thread(
+                self.service.users().settings().filters().list(userId="me").execute
+            )
+            filters = results.get('filter', [])
+            return filters
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def get_filter(self, filter_id: str) -> dict | str:
+        """Gets a specific filter by ID"""
+        try:
+            filter_data = await asyncio.to_thread(
+                self.service.users().settings().filters().get(userId="me", id=filter_id).execute
+            )
+            return filter_data
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
+    
+    async def create_filter(self, 
+                           from_email: str = None,
+                           to_email: str = None,
+                           subject: str = None,
+                           query: str = None,
+                           has_attachment: bool = None,
+                           exclude_chats: bool = None,
+                           size_comparison: str = None,
+                           size: int = None,
+                           add_label_ids: list[str] = None,
+                           remove_label_ids: list[str] = None,
+                           forward_to: str = None) -> dict | str:
+        """Creates a new email filter
+        
+        Args:
+            from_email: Email from a specific sender
+            to_email: Email to a specific recipient
+            subject: Email with a specific subject
+            query: Email matching a custom query
+            has_attachment: Email has an attachment
+            exclude_chats: Exclude chats from filter
+            size_comparison: 'larger' or 'smaller'
+            size: Size in bytes for comparison
+            add_label_ids: Labels to add to matching emails
+            remove_label_ids: Labels to remove from matching emails
+            forward_to: Email address to forward matching emails to
+        """
+        try:
+            # Build the filter criteria
+            criteria = {}
+            if from_email:
+                criteria['from'] = from_email
+            if to_email:
+                criteria['to'] = to_email
+            if subject:
+                criteria['subject'] = subject
+            if query:
+                criteria['query'] = query
+            if has_attachment is not None:
+                criteria['hasAttachment'] = has_attachment
+            if exclude_chats is not None:
+                criteria['excludeChats'] = exclude_chats
+            if size_comparison and size:
+                if size_comparison.lower() == 'larger':
+                    criteria['sizeComparison'] = 'larger'
+                    criteria['size'] = size
+                elif size_comparison.lower() == 'smaller':
+                    criteria['sizeComparison'] = 'smaller'
+                    criteria['size'] = size
+            
+            # Build the filter actions
+            action = {}
+            if add_label_ids:
+                action['addLabelIds'] = add_label_ids
+            if remove_label_ids:
+                action['removeLabelIds'] = remove_label_ids
+            if forward_to:
+                action['forward'] = forward_to
+            
+            # Create the filter
+            filter_object = {
+                'criteria': criteria,
+                'action': action
+            }
+            
+            created_filter = await asyncio.to_thread(
+                self.service.users().settings().filters().create(
+                    userId="me", 
+                    body=filter_object
+                ).execute
+            )
+            
+            logger.info(f"Filter created: {created_filter['id']}")
+            return {
+                'status': 'success',
+                'filter_id': created_filter['id'],
+                'filter': created_filter
+            }
+        except HttpError as error:
+            return {"status": "error", "error_message": str(error)}
+    
+    async def delete_filter(self, filter_id: str) -> str:
+        """Deletes a filter by ID"""
+        try:
+            await asyncio.to_thread(
+                self.service.users().settings().filters().delete(
+                    userId="me", 
+                    id=filter_id
+                ).execute
+            )
+            
+            logger.info(f"Filter deleted: {filter_id}")
+            return f"Filter deleted successfully."
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -536,6 +669,30 @@ Here are the tools you can use for label management:
 - search-by-label: Finds all emails with a specific label
 
 Please help me {action} by using the appropriate tools. If you need to list labels first to get label IDs, please do so."""
+                        )
+                    )
+                ]
+            )
+
+        elif name == "manage-filters":
+            action = arguments.get("action", "")
+            
+            # Guide the LLM on how to manage filters
+            return types.GetPromptResult(
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(
+                            type="text",
+                            text=f"""I need help with managing my email filters. Specifically, I want to {action}.
+
+Here are the tools you can use for filter management:
+- list-filters: Lists all existing filters in my Gmail account
+- get-filter: Gets details of a specific filter
+- create-filter: Creates a new filter
+- delete-filter: Deletes a specific filter
+
+Please help me {action} by using the appropriate tools. If you need to list filters first to get filter IDs, please do so."""
                         )
                     )
                 ]
@@ -740,6 +897,102 @@ Please help me {action} by using the appropriate tools. If you need to list labe
                     "required": ["label_id"],
                 },
             ),
+            types.Tool(
+                name="list-filters",
+                description="Lists all email filters in the user's mailbox",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                },
+            ),
+            types.Tool(
+                name="get-filter",
+                description="Gets details of a specific filter",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "filter_id": {
+                            "type": "string",
+                            "description": "Filter ID",
+                        },
+                    },
+                    "required": ["filter_id"],
+                },
+            ),
+            types.Tool(
+                name="create-filter",
+                description="Creates a new email filter",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "from_email": {
+                            "type": "string",
+                            "description": "Filter emails from this sender",
+                        },
+                        "to_email": {
+                            "type": "string",
+                            "description": "Filter emails to this recipient",
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Filter emails with this subject",
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "Filter emails matching this query",
+                        },
+                        "has_attachment": {
+                            "type": "boolean",
+                            "description": "Filter emails with attachments",
+                        },
+                        "exclude_chats": {
+                            "type": "boolean",
+                            "description": "Exclude chats from filter",
+                        },
+                        "size_comparison": {
+                            "type": "string",
+                            "description": "Size comparison ('larger' or 'smaller')",
+                        },
+                        "size": {
+                            "type": "integer",
+                            "description": "Size in bytes for comparison",
+                        },
+                        "add_label_ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Labels to add to matching emails",
+                        },
+                        "remove_label_ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Labels to remove from matching emails",
+                        },
+                        "forward_to": {
+                            "type": "string",
+                            "description": "Email address to forward matching emails to",
+                        },
+                    },
+                },
+            ),
+            types.Tool(
+                name="delete-filter",
+                description="Deletes a specific filter",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "filter_id": {
+                            "type": "string",
+                            "description": "Filter ID",
+                        },
+                    },
+                    "required": ["filter_id"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -855,6 +1108,41 @@ Please help me {action} by using the appropriate tools. If you need to list labe
                 raise ValueError("Missing required parameter for searching by label")
             messages = await gmail_service.search_by_label(label_id)
             return [types.TextContent(type="text", text=str(messages), artifact={"type": "json", "data": messages})]
+        elif name == "list-filters":
+            filters = await gmail_service.list_filters()
+            return [types.TextContent(type="text", text=str(filters), artifact={"type": "json", "data": filters})]
+        elif name == "get-filter":
+            filter_id = arguments.get("filter_id")
+            if not filter_id:
+                raise ValueError("Missing required parameter for getting a filter")
+            filter_data = await gmail_service.get_filter(filter_id)
+            return [types.TextContent(type="text", text=str(filter_data), artifact={"type": "dictionary", "data": filter_data})]
+        elif name == "create-filter":
+            from_email = arguments.get("from_email")
+            to_email = arguments.get("to_email")
+            subject = arguments.get("subject")
+            query = arguments.get("query")
+            has_attachment = arguments.get("has_attachment")
+            exclude_chats = arguments.get("exclude_chats")
+            size_comparison = arguments.get("size_comparison")
+            size = arguments.get("size")
+            add_label_ids = arguments.get("add_label_ids")
+            remove_label_ids = arguments.get("remove_label_ids")
+            forward_to = arguments.get("forward_to")
+            if not from_email and not to_email and not subject and not query and has_attachment is None and exclude_chats is None and size_comparison is None and size is None and add_label_ids is None and remove_label_ids is None and forward_to is None:
+                raise ValueError("Missing required parameters for creating a filter")
+            filter_response = await gmail_service.create_filter(from_email, to_email, subject, query, has_attachment, exclude_chats, size_comparison, size, add_label_ids, remove_label_ids, forward_to)
+            if filter_response["status"] == "success":
+                response_text = f"Filter created successfully. Filter ID: {filter_response['filter_id']}, Filter: {filter_response['filter']}"
+            else:
+                response_text = f"Failed to create filter: {filter_response['error_message']}"
+            return [types.TextContent(type="text", text=response_text)]
+        elif name == "delete-filter":
+            filter_id = arguments.get("filter_id")
+            if not filter_id:
+                raise ValueError("Missing required parameter for deleting a filter")
+            msg = await gmail_service.delete_filter(filter_id)
+            return [types.TextContent(type="text", text=str(msg))]
         else:
             logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
