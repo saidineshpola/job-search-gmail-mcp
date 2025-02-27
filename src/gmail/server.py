@@ -43,6 +43,7 @@ You have the following tools available:
 - Apply a label to an email (apply-label)
 - Remove a label from an email (remove-label)
 - Search for emails with a specific label (search-by-label)
+- Search for emails using Gmail's search syntax (search-emails)
 - List all email filters (list-filters)
 - Get details of a specific filter (get-filter)
 - Create a new email filter (create-filter)
@@ -114,6 +115,17 @@ PROMPTS = {
             types.PromptArgument(
                 name="action",
                 description="What action to take with filters (create, list, view, delete)",
+                required=True
+            ),
+        ],
+    ),
+    "search-emails": types.Prompt(
+        name="search-emails",
+        description="Search for emails using Gmail's search syntax",
+        arguments=[
+            types.PromptArgument(
+                name="query",
+                description="What to search for in emails",
                 required=True
             ),
         ],
@@ -575,6 +587,78 @@ class GmailService:
             return f"Filter deleted successfully."
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
+    
+    async def search_emails(self, query: str, max_results: int = 50) -> list[dict] | str:
+        """
+        Searches for emails using Gmail's search syntax.
+        
+        Args:
+            query: Gmail search query (e.g., 'from:example@gmail.com', 'subject:hello', etc.)
+            max_results: Maximum number of results to return (default: 50)
+            
+        Returns:
+            List of message objects or error message
+        """
+        try:
+            user_id = 'me'
+            
+            response = await asyncio.to_thread(
+                self.service.users().messages().list(
+                    userId=user_id,
+                    q=query,
+                    maxResults=max_results
+                ).execute
+            )
+            
+            messages = []
+            if 'messages' in response:
+                messages.extend(response['messages'])
+
+            # Get additional pages if available and needed
+            while 'nextPageToken' in response and len(messages) < max_results:
+                page_token = response['nextPageToken']
+                response = await asyncio.to_thread(
+                    self.service.users().messages().list(
+                        userId=user_id, 
+                        q=query,
+                        pageToken=page_token,
+                        maxResults=max_results - len(messages)
+                    ).execute
+                )
+                if 'messages' in response:
+                    messages.extend(response['messages'])
+            
+            # Get basic metadata for each message
+            result_messages = []
+            for msg in messages:
+                msg_data = await asyncio.to_thread(
+                    self.service.users().messages().get(
+                        userId=user_id,
+                        id=msg['id'],
+                        format='metadata',
+                        metadataHeaders=['Subject', 'From', 'Date']
+                    ).execute
+                )
+                
+                headers = msg_data.get('payload', {}).get('headers', [])
+                
+                subject = next((header['value'] for header in headers if header['name'].lower() == 'subject'), 'No Subject')
+                sender = next((header['value'] for header in headers if header['name'].lower() == 'from'), 'Unknown Sender')
+                date = next((header['value'] for header in headers if header['name'].lower() == 'date'), '')
+                
+                result_messages.append({
+                    'id': msg['id'],
+                    'threadId': msg['threadId'],
+                    'subject': subject,
+                    'from': sender,
+                    'date': date,
+                    'snippet': msg_data.get('snippet', '')
+                })
+                
+            return result_messages
+            
+        except HttpError as error:
+            return f"An HttpError occurred: {str(error)}"
   
 async def main(creds_file_path: str,
                token_path: str):
@@ -693,6 +777,38 @@ Here are the tools you can use for filter management:
 - delete-filter: Deletes a specific filter
 
 Please help me {action} by using the appropriate tools. If you need to list filters first to get filter IDs, please do so."""
+                        )
+                    )
+                ]
+            )
+
+        elif name == "search-emails":
+            query = arguments.get("query", "")
+            
+            # Guide the LLM on how to search emails
+            return types.GetPromptResult(
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(
+                            type="text",
+                            text=f"""I need to search through my emails for: {query}
+
+Here are the tools you can use for searching emails:
+- search-emails: Searches all emails using Gmail's search syntax
+- get-unread-emails: Gets only unread emails from the inbox
+
+Please help me find emails matching my search criteria. You can use Gmail's search syntax for advanced searches:
+- from:sender - Emails from a specific sender
+- to:recipient - Emails to a specific recipient
+- subject:text - Emails with specific text in the subject
+- has:attachment - Emails with attachments
+- after:YYYY/MM/DD - Emails after a specific date
+- before:YYYY/MM/DD - Emails before a specific date
+- is:important - Important emails
+- label:name - Emails with a specific label
+
+Please search for emails matching: {query}"""
                         )
                     )
                 ]
@@ -993,6 +1109,24 @@ Please help me {action} by using the appropriate tools. If you need to list filt
                     "required": ["filter_id"],
                 },
             ),
+            types.Tool(
+                name="search-emails",
+                description="Searches for emails using Gmail's search syntax",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Gmail search query",
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -1143,6 +1277,13 @@ Please help me {action} by using the appropriate tools. If you need to list filt
                 raise ValueError("Missing required parameter for deleting a filter")
             msg = await gmail_service.delete_filter(filter_id)
             return [types.TextContent(type="text", text=str(msg))]
+        elif name == "search-emails":
+            query = arguments.get("query")
+            max_results = arguments.get("max_results", 50)
+            if not query:
+                raise ValueError("Missing required parameter for searching emails")
+            messages = await gmail_service.search_emails(query, max_results)
+            return [types.TextContent(type="text", text=str(messages), artifact={"type": "json", "data": messages})]
         else:
             logger.error(f"Unknown tool: {name}")
             raise ValueError(f"Unknown tool: {name}")
