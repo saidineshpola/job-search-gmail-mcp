@@ -1,106 +1,96 @@
-# Gmail Server for Model Context Protocol (MCP)
+# Enhanced Gmail MCP Server
 
-This MCP server integrates with Gmail to enable sending, removing, reading, drafting, and responding to emails.
+A powerful and feature-rich Model Context Protocol (MCP) server for Gmail integration, written in Python. This server enables AI assistants like Claude to interact with Gmail through natural language, providing comprehensive email management capabilities.
 
-> Note: This server enables an MCP client to read, remove, and send emails. However, the client prompts the user before conducting such activities. 
+## 🌟 Key Features
 
-https://github.com/user-attachments/assets/5794cd16-00d2-45a2-884a-8ba0c3a90c90
+### 📧 Complete Email Management
+- Send emails with customizable subject, content, and recipients
+- Read and retrieve email content with full metadata
+- Move emails to trash with confirmation
+- Mark emails as read/unread
+- Open emails directly in browser
 
-## Credits
+### 📝 Draft Management
+- Create draft emails for later review
+- List all draft emails
+- Edit existing drafts
 
-This project was inspired by and adapted from [mcp-gsuite](https://github.com/MarkusPfundstein/mcp-gsuite) by Markus Pfundstein. The original project has been enhanced with additional features and improvements.
+### 🏷️ Advanced Label Management
+- List all available labels
+- Create custom labels
+- Apply/remove labels from emails
+- Rename existing labels
+- Delete unused labels
+- Search emails by label
 
-## Installation
+### 📁 Folder Organization
+- Create new folders (implemented as Gmail labels)
+- Move emails between folders
+- List all available folders
 
-### From GitHub
+### 🔍 Powerful Search & Filtering
+- Search emails using Gmail's advanced query syntax
+- Create, manage, and delete email filters
+- Filter by sender, recipient, subject, content, and more
+- Customize search results with flexible parameters
+
+### 🗄️ Archive Management
+- Archive emails (remove from inbox without deleting)
+- Batch archive multiple emails matching search criteria
+- List all archived emails
+- Restore archived emails to inbox
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.8+
+- Google Cloud project with Gmail API enabled
+- OAuth 2.0 credentials
+
+### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/theposch/gmail-mcp-server.git
-cd gmail-mcp-server
+git clone https://github.com/theposch/gmail-mcp.git
+cd gmail-mcp
 
-# Set up a virtual environment (recommended)
+# Set up a virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install the package in development mode
+# Install the package
 pip install -e .
 ```
 
-## Components
+### Google Cloud Setup
 
-### Tools
+1. Create a [new Google Cloud project](https://console.cloud.google.com/projectcreate)
+2. [Enable the Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com)
+3. Configure the [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent):
+   - Select "External" user type
+   - Add your email as a test user
+   - Add the scope: `https://www.googleapis.com/auth/gmail/modify`
+4. Create [OAuth 2.0 credentials](https://console.cloud.google.com/apis/credentials):
+   - Choose "Desktop app" as the application type
+   - Download the JSON credentials file
 
-- **send-email**
-  - Sends email to email address recipient 
-  - Input:
-    - `recipient_id` (string): Email address of addressee
-    - `subject` (string): Email subject
-    - `message` (string): Email content
-  - Returns status and message_id
+### Configuration
 
-- **trash-email**
-  - Moves email to trash 
-  - Input:
-    - `email_id` (string): Auto-generated ID of email
-  - Returns success message
+Store your credentials securely and specify their location when running the server:
 
-- **mark-email-as-read**
-  - Marks email as read 
-  - Input:
-    - `email_id` (string): Auto-generated ID of email
-  - Returns success message
+```bash
+# Example directory structure for credentials
+mkdir -p ~/.gmail-mcp
+# Move your downloaded credentials file
+mv ~/Downloads/client_secret_*.json ~/.gmail-mcp/credentials.json
+```
 
-- **get-unread-emails**
-  - Retrieves unread emails 
-  - Returns list of emails including email ID
+## 🔧 Usage
 
-- **read-email**
-  - Retrieves given email content
-  - Input:
-    - `email_id` (string): Auto-generated ID of email
-  - Returns dictionary of email metadata and marks email as read
+### Running with Claude Desktop
 
-- **open-email**
-  - Open email in browser
-  - Input:
-    - `email_id` (string): Auto-generated ID of email
-  - Returns success message and opens given email in default browser
-
-
-## Setup
-
-### Gmail API Setup
-
-1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
-2. [Enable the Gmail API](https://console.cloud.google.com/workspace-api/products)
-3. [Configure an OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) 
-    - Select "external". However, we will not publish the app.
-    - Add your personal email address as a "Test user".
-4. Add OAuth scope `https://www.googleapis.com/auth/gmail/modify`
-5. [Create an OAuth Client ID](https://console.cloud.google.com/apis/credentials/oauthclient) for application type "Desktop App"
-6. Download the JSON file of your client's OAuth keys
-7. Rename the key file and save it to your local machine in a secure location. Take note of the location.
-    - The absolute path to this file will be passed as parameter `--creds-file-path` when the server is started. 
-
-### Authentication
-
-When the server is started, an authentication flow will be launched in your system browser. 
-Token credentials will be subsequently saved (and later retrieved) in the absolute file path passed to parameter `--token-path`.
-
-For example, you may use a dot directory in your home folder, replacing `[your-home-folder]`.:
-
-| Parameter       | Example                                          |
-|-----------------|--------------------------------------------------|
-| `--creds-file-path` | `/[your-home-folder]/.google/client_creds.json` |
-| `--token-path`      | `/[your-home-folder]/.google/app_tokens.json`    |
-
-
-### Usage with Desktop App
-
-Using [uv](https://docs.astral.sh/uv/) is recommended.
-
-To integrate this server with Claude Desktop as the MCP Client, add the following to your app's server configuration. By default, this is stored as `~/Library/Application\ Support/Claude/claude_desktop_config.json`. 
+Add the following to your Claude Desktop configuration file (typically at `~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -109,62 +99,71 @@ To integrate this server with Claude Desktop as the MCP Client, add the followin
       "command": "uv",
       "args": [
         "--directory",
-        "[absolute-path-to-git-repo]",
+        "/absolute/path/to/gmail-mcp",
         "run",
         "gmail",
         "--creds-file-path",
-        "[absolute-path-to-credentials-file]",
+        "/absolute/path/to/credentials.json",
         "--token-path",
-        "[absolute-path-to-access-tokens-file]"
+        "/absolute/path/to/tokens.json"
       ]
     }
   }
 }
 ```
 
-The following parameters must be set
-| Parameter       | Example                                          |
-|-----------------|--------------------------------------------------|
-| `--directory`   | Absolute path to `gmail` directory containing server |
-| `--creds-file-path` | Absolute path to credentials file created in Gmail API Setup. |
-| `--token-path`      | Absolute path to store and retrieve access and refresh tokens for application.  |
+### Testing with MCP Inspector
 
-### Troubleshooting with MCP Inspector
-
-To test the server, use [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).
-From the git repo, run the below changing the parameter arguments accordingly.
+For testing and debugging, use the MCP Inspector:
 
 ```bash
-npx @modelcontextprotocol/inspector uv run [absolute-path-to-git-repo]/src/gmail/server.py --creds-file-path [absolute-path-to-credentials-file] --token-path [absolute-path-to-access-tokens-file]
+npx @modelcontextprotocol/inspector uv run /path/to/gmail-mcp/src/gmail/server.py --creds-file-path /path/to/credentials.json --token-path /path/to/tokens.json
 ```
 
-## Contributing
+## 🔐 Security Considerations
 
-Contributions are welcome! Here's how you can contribute to this project:
+- **Never commit credentials or token files to version control**
+- Store credentials in a secure location with appropriate permissions
+- The server will request user confirmation before performing sensitive actions
+- Review Google Cloud Console regularly for unusual activity
+- Consider using environment variables for sensitive paths
+
+## 🛠️ Architecture
+
+This implementation features a comprehensive single-file architecture that handles all Gmail operations through the Google API client libraries. Key components include:
+
+- OAuth2 authentication with automatic token refresh
+- Comprehensive error handling and logging
+- Structured tool definitions with clear input schemas
+- Efficient email parsing and formatting
+
+## 📚 Example Prompts
+
+Try these prompts with Claude after connecting the Gmail MCP server:
+
+- "Show me my unread emails"
+- "Search for emails from example@domain.com with attachments"
+- "Create a new label called 'Important Projects'"
+- "Draft an email to john@example.com about the upcoming meeting"
+- "Archive all emails from newsletter@example.com"
+- "Create a filter to automatically label emails from my team"
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
-2. Create a new branch (`git checkout -b feature/your-feature-name`)
-3. Make your changes
-4. Run tests if available
-5. Commit your changes (`git commit -m 'Add some feature'`)
-6. Push to the branch (`git push origin feature/your-feature-name`)
-7. Open a Pull Request
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Development Setup
+## 📄 License
 
-For development, it's recommended to install the package in development mode:
+This project is licensed under the GPL-3.0 License - see the LICENSE file for details.
 
-```bash
-pip install -e .
-```
+## 🙏 Acknowledgments
 
-### Security Considerations
-
-- **Never commit your credentials or token files to the repository**
-- The `.gitignore` file is set up to exclude common credential file patterns
-- Use the sample configuration files as templates and create your own local copies
-
-## License
-
-This project is licensed under the terms of the LICENSE file included in the repository.
-
+- Inspired by various MCP server implementations in the community
+- Built with the [Model Context Protocol](https://modelcontextprotocol.io/) framework
+- Uses Google's official API client libraries
