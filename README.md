@@ -128,6 +128,9 @@ pip install -e .
    - Filter and prioritize job matches
    - Customize job search queries
    - Generate personalized application materials
+ 
+ 3. **Update default mail id** 
+ Update the default MAil in src/gmail/server.py to your mail id for the backup if LLM doesn't know your mail id.
 
 ## 🔧 Usage
 
