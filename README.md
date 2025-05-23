@@ -1,10 +1,18 @@
-# Enhanced Gmail MCP Server
+# Enhanced TheirStack Gmail MCP Server
 
-A powerful and feature-rich Model Context Protocol (MCP) server for Gmail integration, written in Python. This server enables AI assistants like Claude to interact with Gmail through natural language, providing comprehensive email management capabilities.
+A powerful Model Context Protocol (MCP) server that combines Gmail integration with TheirStack job search capabilities, written in Python. This server enables AI assistants like Claude to search for jobs and manage email communications for your job search through natural language interaction.
 
 ## 🌟 Key Features
 
-### 📧 Complete Email Management
+### 💼 Job Search and Analysis
+- Search for jobs across multiple platforms via TheirStack API
+- Filter jobs by location, experience level, and skills
+- Get detailed job descriptions and requirements
+- Track application status and responses
+- Receive automated daily job alerts
+- Generate job search analytics and progress reports
+
+### 📧 Smart Email Management for Job Search
 - Send emails with customizable subject, content, and recipients
 - Read and retrieve email content with full metadata
 - Move emails to trash with confirmation
@@ -62,6 +70,20 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install the package
 pip install -e .
 ```
+### Their Stack Setup
+1. Get the API credentials from [theirstack](https://app.theirstack.com/settings/api-key) and save it inside `theirstack_api.json`:
+
+```json
+{
+    "api_key": "your_theirstack_api_key_here",
+    "search_preferences": {
+        "locations": ["Bengaluru", "Remote"],
+        "roles": ["Machine Learning", "AI Engineer", "Data Scientist"],
+        "experience_level": "3-7 years",
+        "keywords": ["python", "machine learning", "AI", "deep learning"]
+    }
+}
+```
 
 ### Google Cloud Setup
 
@@ -99,13 +121,24 @@ Add the following to your Claude Desktop configuration file (typically at `~/Lib
       "command": "uv",
       "args": [
         "--directory",
-        "/absolute/path/to/gmail-mcp",
+        "C:\\Users\\user\\Desktop\\projects\\gmail-mcp",
         "run",
         "gmail",
         "--creds-file-path",
-        "/absolute/path/to/credentials.json",
+        "C:\\Users\\user\\Desktop\\projects\\gmail-mcp\\client_secret_.apps.googleusercontent.com.json",
         "--token-path",
-        "/absolute/path/to/tokens.json"
+        "C:\\Users\\user\\Desktop\\projects\\gmail-mcp\\tokens.json"
+      ]
+    },
+    "jobstack": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "C:\\Users\\user\\Desktop\\projects\\gmail-mcp",
+        "run",
+        "jobstack",
+        "--api-config",
+        "C:\\Users\\user\\Desktop\\projects\\gmail-mcp\\theirstack_api.json"
       ]
     }
   }
@@ -139,14 +172,30 @@ This implementation features a comprehensive single-file architecture that handl
 
 ## 📚 Example Prompts
 
-Try these prompts with Claude after connecting the Gmail MCP server:
+Try these job search-specific prompts with Claude:
 
-- "Show me my unread emails"
-- "Search for emails from example@domain.com with attachments"
-- "Create a new label called 'Important Projects'"
-- "Draft an email to john@example.com about the upcoming meeting"
-- "Archive all emails from newsletter@example.com"
-- "Create a filter to automatically label emails from my team"
+- "Find ML engineering jobs posted in the last 2 days and send me the mail about it."
+- "Send me a daily digest of new AI jobs in Bangalore"
+- "Draft an application email for the Senior ML Scientist position at Wayfair"
+- "Track my application status for recent jobs"
+- "Create a follow-up email template for applications with no response"
+- "Generate a weekly report of my job search progress"
+
+## 🔄 Daily Job Search Workflow
+
+1. The server automatically fetches new job postings every 24 hours
+2. Matches are filtered based on your preferences in `theirstack_api.json`
+3. A formatted email digest is sent to your specified email address
+4. You can respond with actions like "apply", "save for later", or "ignore"
+5. The server helps manage applications and follow-ups automatically
+
+## 📊 Job Search Analytics
+
+- Track your application success rates
+- Monitor response times from employers
+- View job market trends in your field
+- Generate detailed progress reports
+- Set and track application goals
 
 ## 🤝 Contributing
 

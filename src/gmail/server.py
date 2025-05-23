@@ -619,13 +619,13 @@ class GmailService:
         except HttpError as error:
             return f"An HttpError occurred: {str(error)}"
     
-    async def search_emails(self, query: str, max_results: int = 50) -> list[dict] | str:
+    async def search_emails(self, query: str, max_results: int = 10) -> list[dict] | str:
         """
         Searches for emails using Gmail's search syntax.
         
         Args:
             query: Gmail search query (e.g., 'from:example@gmail.com', 'subject:hello', etc.)
-            max_results: Maximum number of results to return (default: 50)
+            max_results: Maximum number of results to return (default: 10)
             
         Returns:
             List of message objects or error message
@@ -925,7 +925,7 @@ class GmailService:
                 'error_message': str(error)
             }
     
-    async def list_archived(self, max_results: int = 50) -> list[dict] | str:
+    async def list_archived(self, max_results: int = 10) -> list[dict] | str:
         """
         Lists archived emails (emails not in inbox)
         
@@ -1189,15 +1189,13 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
         return [
             types.Tool(
                 name="send-email",
-                description="""Sends email to recipient. 
-                Do not use if user only asked to draft email. 
-                Drafts must be approved before sending.""",
+                description="""Sends email to recipient. """,
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "recipient_id": {
                             "type": "string",
-                            "description": "Recipient email address",
+                            "description": "Recipient email address, if not mentioned send it to myself saidines12@gmail.com",
                         },
                         "subject": {
                             "type": "string",
@@ -1594,7 +1592,7 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
                         },
                         "max_emails": {
                             "type": "integer",
-                            "description": "Maximum number of emails to archive (default: 100)",
+                            "description": "Maximum number of emails to archive (default: 10)",
                         },
                     },
                     "required": ["query"],
@@ -1636,10 +1634,10 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
     ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
 
         if name == "send-email":
-            recipient = arguments.get("recipient_id")
+            recipient = arguments.get("recipient_id", "saidines12@gmail.com")
             if not recipient:
                 raise ValueError("Missing recipient parameter")
-            subject = arguments.get("subject")
+            subject = arguments.get("subject", "MCP server")
             if not subject:
                 raise ValueError("Missing subject parameter")
             message = arguments.get("message")
@@ -1780,7 +1778,7 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
             return [types.TextContent(type="text", text=str(msg))]
         elif name == "search-emails":
             query = arguments.get("query")
-            max_results = arguments.get("max_results", 50)
+            max_results = arguments.get("max_results", 10)
             if not query:
                 raise ValueError("Missing required parameter for searching emails")
             messages = await gmail_service.search_emails(query, max_results)
@@ -1836,7 +1834,7 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
             archive_response = await gmail_service.batch_archive(query, max_emails)
             return [types.TextContent(type="text", text=str(archive_response))]
         elif name == "list-archived":
-            max_results = arguments.get("max_results", 50)
+            max_results = arguments.get("max_results", 10)
             archived_emails = await gmail_service.list_archived(max_results)
             return [types.TextContent(type="text", text=str(archived_emails), artifact={"type": "json", "data": archived_emails})]
         elif name == "restore-to-inbox":
@@ -1855,7 +1853,7 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
             write_stream,
             InitializationOptions(
                 server_name="gmail",
-                server_version="0.1.0",
+                server_version="0.1.1",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
                     experimental_capabilities={},

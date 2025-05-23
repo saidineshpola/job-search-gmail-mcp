@@ -9,3 +9,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# api keys
+theirstack_api.json
+client_secret_.apps.googleusercontent.com.json
+tokens.json
+
+# outputs
+outputs/
