@@ -82,8 +82,8 @@ COMPACT_USER_PROFILE = UserProfile(
     name="AI/ML Engineer",
     skills=["AI/ML", "NLP", "LLM", "RAG", "LangChain", "PyTorch", "Python", "FastAPI"],
     preferred_locations=["India", "Remote"],
-    years_of_experience=4,
-    experience="Update it with your own experience"
+    years_of_experience=1,
+    experience=""
 )
 
 PROMPTS = {
