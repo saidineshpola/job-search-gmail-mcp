@@ -99,14 +99,35 @@ pip install -e .
 
 ### Configuration
 
-Store your credentials securely and specify their location when running the server:
+1. **Store OAuth Credentials**
+   ```bash
+   # Create directory for credentials
+   mkdir -p ~/.gmail-mcp
+   
+   # Move downloaded credentials file to secure location
+   mv ~/Downloads/client_secret_*.json ~/.gmail-mcp/credentials.json
+   ```
 
-```bash
-# Example directory structure for credentials
-mkdir -p ~/.gmail-mcp
-# Move your downloaded credentials file
-mv ~/Downloads/client_secret_*.json ~/.gmail-mcp/credentials.json
-```
+2. **Configure User Profile**
+   Update the default user profile in `src/theirstack/server.py` with your details so that you don't have to give it everytime in the prompt:
+   ```python
+   COMPACT_USER_PROFILE = UserProfile(
+       name="AI/ML Engineer",              # Your job title
+       skills=[                            # List your technical skills
+           "AI/ML", "NLP", "LLM", "RAG",
+           "LangChain", "PyTorch", 
+           "Python", "FastAPI"
+       ],
+       preferred_locations=["India", "Remote"],  # Your preferred work locations
+       years_of_experience=1,                    # Your years of experience
+       experience="Update with your professional experience summary"
+   )
+   ```
+
+   This profile will be used to:
+   - Filter and prioritize job matches
+   - Customize job search queries
+   - Generate personalized application materials
 
 ## 🔧 Usage
 
@@ -214,5 +235,6 @@ This project is licensed under the GPL-3.0 License - see the LICENSE file for de
 ## 🙏 Acknowledgments
 
 - Inspired by various MCP server implementations in the community
+- Thanks to [@theposch](https://github.com/theposch/gmail-mcp) for the gmail mcp server.
 - Built with the [Model Context Protocol](https://modelcontextprotocol.io/) framework
 - Uses Google's official API client libraries

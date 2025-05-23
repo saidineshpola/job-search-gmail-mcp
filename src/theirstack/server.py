@@ -75,13 +75,15 @@ class UserProfile:
     skills: List[str]
     preferred_locations: List[str]
     years_of_experience: Optional[int]
+    experience: Optional[str] = None
 
 # Compact user profile
 COMPACT_USER_PROFILE = UserProfile(
     name="AI/ML Engineer",
     skills=["AI/ML", "NLP", "LLM", "RAG", "LangChain", "PyTorch", "Python", "FastAPI"],
     preferred_locations=["India", "Remote"],
-    years_of_experience=4
+    years_of_experience=4,
+    experience="Update it with your own experience"
 )
 
 PROMPTS = {
@@ -373,6 +375,7 @@ Parameters:
 
 Profile: {COMPACT_USER_PROFILE.name} with 4+ years in AI/ML, NLP, LLMs
 Skills: {', '.join(COMPACT_USER_PROFILE.skills)}
+Experience: {COMPACT_USER_PROFILE.experience if COMPACT_USER_PROFILE.experience else 'None'}
 
 Use search-jobs tool to find matching positions."""
                         )

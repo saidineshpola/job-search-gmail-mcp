@@ -1195,7 +1195,7 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
                     "properties": {
                         "recipient_id": {
                             "type": "string",
-                            "description": "Recipient email address, if not mentioned send it to myself saidines12@gmail.com",
+                            "description": "Recipient email address, if not mentioned send it to myself",
                         },
                         "subject": {
                             "type": "string",
@@ -1634,7 +1634,8 @@ Note: Archiving in Gmail means removing the email from your inbox while keeping 
     ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
 
         if name == "send-email":
-            recipient = arguments.get("recipient_id", "saidines12@gmail.com")
+            # Keep Your email address in the code for testing purposes
+            recipient = arguments.get("recipient_id", "s*******@gmail.com")
             if not recipient:
                 raise ValueError("Missing recipient parameter")
             subject = arguments.get("subject", "MCP server")
