@@ -2,6 +2,12 @@
 
 A powerful Model Context Protocol (MCP) server that combines Gmail integration with TheirStack job search capabilities, written in Python. This server enables AI assistants like Claude to search for jobs and manage email communications for your job search through natural language interaction.
 
+## 📚 Resources & Tutorials
+
+**📖 [Read the Complete Tutorial](https://medium.com/@saidines12/automate-your-job-hunt-building-a-smart-mcp-server-with-theirstack-and-gmail-01078bffe2e4)** - Step-by-step guide on Medium
+
+**🎥 [Watch the demo Video](https://www.youtube.com/watch?v=TiBvt1D4B7o&ab_channel=MachinePola)** - Demo video on YouTube
+
 ## 🌟 Key Features
 
 ### 💼 Job Search and Analysis
@@ -70,6 +76,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install the package
 uv pip install -e .
 ```
+
+> 💡 **Need help with setup?** Check out our [detailed tutorial](https://medium.com/@saidines12/automate-your-job-hunt-building-a-smart-mcp-server-with-theirstack-and-gmail-01078bffe2e4) or [video walkthrough](https://www.youtube.com/watch?v=TiBvt1D4B7o&ab_channel=MachinePola) for step-by-step instructions.
+
 ### Their Stack Setup
 1. Get the API credentials from [theirstack](https://app.theirstack.com/settings/api-key) and save it inside `theirstack_api.json`:
 
@@ -224,6 +233,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## 📖 Learn More
+
+- **📝 [Complete Tutorial](https://medium.com/@saidines12/automate-your-job-hunt-building-a-smart-mcp-server-with-theirstack-and-gmail-01078bffe2e4)** - In-depth article explaining the architecture and implementation
+- **🎥 [Video demo](https://www.youtube.com/watch?v=TiBvt1D4B7o&ab_channel=MachinePola)** - Visual walkthrough of mcp server
+- **🔗 [Model Context Protocol](https://modelcontextprotocol.io/)** - Learn more about the MCP framework
 
 ## 📄 License
 
