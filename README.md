@@ -68,7 +68,7 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install the package
-pip install -e .
+uv pip install -e .
 ```
 ### Their Stack Setup
 1. Get the API credentials from [theirstack](https://app.theirstack.com/settings/api-key) and save it inside `theirstack_api.json`:
@@ -76,12 +76,6 @@ pip install -e .
 ```json
 {
     "api_key": "your_theirstack_api_key_here",
-    "search_preferences": {
-        "locations": ["Bengaluru", "Remote"],
-        "roles": ["Machine Learning", "AI Engineer", "Data Scientist"],
-        "experience_level": "3-7 years",
-        "keywords": ["python", "machine learning", "AI", "deep learning"]
-    }
 }
 ```
 
