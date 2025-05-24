@@ -60,8 +60,8 @@ A powerful Model Context Protocol (MCP) server that combines Gmail integration w
 
 ```bash
 # Clone the repository
-git clone https://github.com/theposch/gmail-mcp.git
-cd gmail-mcp
+git clone https://github.com/saidineshpola/job-search-gmail-mcp.git
+cd job-search-gmail-mcp
 
 # Set up a virtual environment
 python -m venv .venv
